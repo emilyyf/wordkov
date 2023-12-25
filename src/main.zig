@@ -1,18 +1,21 @@
 const std = @import("std");
-// const DefaultPrng = std.rand.DefaultPrng;
-// const Random = std.rand.Random;
+const DefaultPrng = std.rand.DefaultPrng;
+const Random = std.rand.Random;
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     const allocator = std.heap.page_allocator;
+    var prng = DefaultPrng.init(undefined);
+    const random = prng.random();
+
+    var word = [_]u8{0} ** 10;
     var transformation_table: [27][27]u32 = undefined;
+    const file = try std.fs.cwd().openFile("words.txt", .{});
+    defer file.close();
+
     for (transformation_table, 0..) |_, i| {
         transformation_table[i] = [_]u32{0} ** 27;
     }
-
-    const file = try std.fs.cwd().openFile("words.txt", .{});
-
-    defer file.close();
 
     const rdr = file.reader();
     var line_no: usize = 0;
@@ -21,21 +24,31 @@ pub fn main() !void {
 
         line_no += 1;
         for (line, 0..) |byte, i| {
-            const current = byte - 97;
-            const next = if (i == line.len - 1) 26 else line[i+1] - 97;
+            const current = byte - 96;
+            const next = if (i == line.len - 1) 26 else line[i+1] - 96;
             transformation_table[current][next] += 1;
         }
     }
 
-    for (0..26) |i| {
-        try stdout.print("{c}\t", .{ @as(u8, @intCast(97 + i)) });
-    }
-    try stdout.print("\n", .{});
-    for (transformation_table, 0..) |row, i| {
-        try stdout.print("{c} ", .{ @as(u8, @intCast(97 + i)) });
-        for (row) |xxx| {
-            try stdout.print("{d}\t", .{ xxx });
+    word[0] = random.uintLessThan(u8, 25);
+
+    for (1..word.len) |i| {
+        const new_index = @as(
+            u8,
+            @intCast(
+                random.weightedIndex(u32, &transformation_table[word[i-1]])
+            )
+        );
+        if (new_index == 26) {
+            break;
+        } else {
+            word[i] = new_index;
         }
-        try stdout.print("\n", .{});
     }
+
+    for (0..word.len) |i| {
+        word[i] = if (word[i] > 0) word[i] + 96 else 0;
+    }
+
+    try stdout.print("Word: {s}\n", .{ word });
 }
